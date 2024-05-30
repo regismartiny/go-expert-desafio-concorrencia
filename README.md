@@ -1,5 +1,5 @@
 # go-expert-desafio-concorrencia
-Desafio 6 da pós gradução FullCycle Go Expert
+Desafio 6 da Pós-graduação Full Cycle Go Expert
 
 ## Enunciado do desafio
 
