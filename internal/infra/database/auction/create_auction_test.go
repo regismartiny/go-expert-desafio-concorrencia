@@ -2,6 +2,7 @@ package auction
 
 import (
 	"context"
+	"fmt"
 	"fullcycle-auction_go/configuration/logger"
 	"fullcycle-auction_go/internal/entity/auction_entity"
 	"log"
@@ -110,28 +111,35 @@ func (suite *AuctionRepositoryTestSuite) TestGivenAnAction_WhenSave_ThenShouldSa
 
 func (suite *AuctionRepositoryTestSuite) TestGivenAnAction_WhenSave_ThenShouldSaveAuctionAndUpdateStatusToCompletedAfterExpiration() {
 
-	os.Setenv("AUCTION_INTERVAL", "1s")
+	os.Setenv("AUCTION_INTERVAL", "2s")
 
-	repo := NewAuctionRepository(suite.Db)
+	for i := range [10000]int{} {
 
-	auctionEntity, err := auction_entity.CreateAuction(
-		"Produto1",
-		"Categoria",
-		"Descrição",
-		auction_entity.ProductCondition(1))
+		go func(n int) {
 
-	suite.Nil(err)
+			repo := NewAuctionRepository(suite.Db)
 
-	_ = repo.CreateAuction(suite.context, auctionEntity)
+			auctionEntity, err := auction_entity.CreateAuction(
+				fmt.Sprintf("Produto%d", n),
+				"Categoria",
+				"Descrição",
+				auction_entity.ProductCondition(1))
 
-	time.Sleep(5 * time.Second)
+			suite.Nil(err)
 
-	auctions, _ := repo.FindAuctions(suite.context, auction_entity.Completed, "", "")
+			_ = repo.CreateAuction(suite.context, auctionEntity)
 
-	suite.Equal(1, len(auctions))
-	suite.Equal(auctionEntity.ProductName, auctions[0].ProductName)
-	suite.Equal(auctionEntity.Category, auctions[0].Category)
-	suite.Equal(auctionEntity.Description, auctions[0].Description)
-	suite.Equal(auction_entity.New, auctions[0].Condition)
-	suite.Equal(auction_entity.Completed, auctions[0].Status)
+			time.Sleep(3 * time.Second)
+
+			auctions, _ := repo.FindAuctions(suite.context, auction_entity.Completed, "", "")
+
+			suite.Equal(1, len(auctions))
+			suite.Equal(auctionEntity.ProductName, auctions[0].ProductName)
+			suite.Equal(auctionEntity.Category, auctions[0].Category)
+			suite.Equal(auctionEntity.Description, auctions[0].Description)
+			suite.Equal(auction_entity.New, auctions[0].Condition)
+			suite.Equal(auction_entity.Completed, auctions[0].Status)
+
+		}(i)
+	}
 }
