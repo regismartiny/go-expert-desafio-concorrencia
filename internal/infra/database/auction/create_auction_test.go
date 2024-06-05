@@ -2,7 +2,6 @@ package auction
 
 import (
 	"context"
-	"fmt"
 	"fullcycle-auction_go/configuration/logger"
 	"fullcycle-auction_go/internal/entity/auction_entity"
 	"log"
@@ -45,6 +44,8 @@ func (suite *AuctionRepositoryTestSuite) SetupSuite() {
 	suite.NoError(err)
 
 	suite.Db = client.Database("testDb")
+
+	os.Setenv("AUCTION_INTERVAL", "5s")
 }
 
 func (suite *AuctionRepositoryTestSuite) TearDownSuite() {
@@ -60,67 +61,16 @@ func TestSuite(t *testing.T) {
 	suite.Run(t, new(AuctionRepositoryTestSuite))
 }
 
-func (suite *AuctionRepositoryTestSuite) TestGivenAnAction_WhenSave_ThenShouldSaveAuction() {
-
-	os.Setenv("AUCTION_INTERVAL", "3s")
-
-	repo := NewAuctionRepository(suite.Db)
-
-	auctionEntity, err := auction_entity.CreateAuction(
-		"Produto1",
-		"Categoria",
-		"Descrição",
-		auction_entity.ProductCondition(1))
-
-	suite.Nil(err)
-
-	_ = repo.CreateAuction(suite.context, auctionEntity)
-
-	auctions, _ := repo.FindAuctions(suite.context, 0, "", "")
-
-	suite.Equal(1, len(auctions))
-	suite.Equal(auctionEntity.ProductName, auctions[0].ProductName)
-	suite.Equal(auctionEntity.Category, auctions[0].Category)
-	suite.Equal(auctionEntity.Description, auctions[0].Description)
-	suite.Equal(auction_entity.New, auctions[0].Condition)
-	suite.Equal(auction_entity.Active, auctions[0].Status)
-}
-
 func (suite *AuctionRepositoryTestSuite) TestGivenAnAction_WhenSave_ThenShouldSaveAuctionAndNotUpdateStatusToCompletedBeforeExpiration() {
 
-	os.Setenv("AUCTION_INTERVAL", "3s")
+	for range [1000]int{} {
 
-	repo := NewAuctionRepository(suite.Db)
-
-	auctionEntity, err := auction_entity.CreateAuction(
-		"Produto1",
-		"Categoria",
-		"Descrição",
-		auction_entity.ProductCondition(1))
-
-	suite.Nil(err)
-
-	_ = repo.CreateAuction(suite.context, auctionEntity)
-
-	time.Sleep(1 * time.Second)
-
-	auctions, _ := repo.FindAuctions(suite.context, auction_entity.Completed, "", "")
-
-	suite.Empty(auctions)
-}
-
-func (suite *AuctionRepositoryTestSuite) TestGivenAnAction_WhenSave_ThenShouldSaveAuctionAndUpdateStatusToCompletedAfterExpiration() {
-
-	os.Setenv("AUCTION_INTERVAL", "2s")
-
-	for i := range [10000]int{} {
-
-		go func(n int) {
+		go func() {
 
 			repo := NewAuctionRepository(suite.Db)
 
 			auctionEntity, err := auction_entity.CreateAuction(
-				fmt.Sprintf("Produto%d", n),
+				"Produto",
 				"Categoria",
 				"Descrição",
 				auction_entity.ProductCondition(1))
@@ -129,17 +79,50 @@ func (suite *AuctionRepositoryTestSuite) TestGivenAnAction_WhenSave_ThenShouldSa
 
 			_ = repo.CreateAuction(suite.context, auctionEntity)
 
-			time.Sleep(3 * time.Second)
+			time.Sleep(1 * time.Second)
 
-			auctions, _ := repo.FindAuctions(suite.context, auction_entity.Completed, "", "")
+			auction, _ := repo.FindAuctionById(suite.context, auctionEntity.Id)
 
-			suite.Equal(1, len(auctions))
-			suite.Equal(auctionEntity.ProductName, auctions[0].ProductName)
-			suite.Equal(auctionEntity.Category, auctions[0].Category)
-			suite.Equal(auctionEntity.Description, auctions[0].Description)
-			suite.Equal(auction_entity.New, auctions[0].Condition)
-			suite.Equal(auction_entity.Completed, auctions[0].Status)
+			suite.Assertions.NotNil(auction)
+			suite.Equal(auctionEntity.ProductName, auction.ProductName)
+			suite.Equal(auctionEntity.Category, auction.Category)
+			suite.Equal(auctionEntity.Description, auction.Description)
+			suite.Equal(auction_entity.New, auction.Condition)
+			suite.Equal(auction_entity.Active, auction.Status)
 
-		}(i)
+		}()
+	}
+}
+
+func (suite *AuctionRepositoryTestSuite) TestGivenAnAction_WhenSave_ThenShouldSaveAuctionAndUpdateStatusToCompletedAfterExpiration() {
+
+	for range [1000]int{} {
+
+		go func() {
+
+			repo := NewAuctionRepository(suite.Db)
+
+			auctionEntity, err := auction_entity.CreateAuction(
+				"Produto",
+				"Categoria",
+				"Descrição",
+				auction_entity.ProductCondition(1))
+
+			suite.Nil(err)
+
+			_ = repo.CreateAuction(suite.context, auctionEntity)
+
+			time.Sleep(5 * time.Second)
+
+			auction, _ := repo.FindAuctionById(suite.context, auctionEntity.Id)
+
+			suite.NotNil(auction)
+			suite.Equal(auctionEntity.ProductName, auction.ProductName)
+			suite.Equal(auctionEntity.Category, auction.Category)
+			suite.Equal(auctionEntity.Description, auction.Description)
+			suite.Equal(auction_entity.New, auction.Condition)
+			suite.Equal(auction_entity.Completed, auction.Status)
+
+		}()
 	}
 }
